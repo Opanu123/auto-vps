@@ -1,0 +1,53 @@
+name: Free VPS Auto-Renew & Reconnect
+
+on:
+  workflow_dispatch:
+  push:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+jobs:
+  auto-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Start tmate SSH
+        id: tmate
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Extract SSH info and save to file
+        if: always()
+        run: |
+          TMATE=$(curl -s https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs | grep -o 'ssh [^"]*tmate.io' | head -n 1)
+
+          echo "$TMATE" > ssh.txt
+
+          git config --global user.name "reconnect-bot"
+          git config --global user.email "bot@example.com"
+
+          git clone https://github.com/${{ github.repository }}.git repo
+          cd repo
+          echo "$TMATE" > ssh.txt
+          git add ssh.txt
+          git commit -m "Updated SSH: $(date -u)"
+          git push origin main --force
+
+      - name: Backup server folder to GitHub
+        if: always()
+        run: |
+          mkdir -p ~/vps-backup
+          cd ~/vps-backup
+
+          # Simulated Minecraft server folder
+          echo "Backup file created at $(date -u)" > README.txt
+
+          git init
+          git config user.name "autobot"
+          git config user.email "bot@example.com"
+          git remote add origin https://github.com/${{ github.repository }}.git || true
+          git pull origin main || true
+          cp -r ~/vps-backup/* .
+          git add .
+          git commit -m "Auto Backup $(date -u)" || true
+          git push origin HEAD:main --force
